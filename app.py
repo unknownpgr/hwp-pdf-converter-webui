@@ -2,7 +2,7 @@ import os
 import shutil
 from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, HTMLResponse
 from typing import List, Dict
 import subprocess
 import uuid
@@ -153,6 +153,10 @@ async def download_file(session_id: str, filename: str):
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="File not found")
     return FileResponse(file_path)
+
+@app.get("/", response_class=HTMLResponse)
+async def read_root():
+    return FileResponse("static/index.html")
 
 # Static file serving configuration
 app.mount("/", StaticFiles(directory="static"), name="static")
