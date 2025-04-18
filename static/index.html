@@ -1,15 +1,17 @@
 <!DOCTYPE html>
 <html lang="ko">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>HWP to PDF Converter</title>
-    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
     <div class="container">
         <h1>HWP to PDF Converter</h1>
-        
+
         <div class="upload-section">
             <h2>파일 업로드</h2>
             <form id="uploadForm" enctype="multipart/form-data">
@@ -23,17 +25,29 @@
             <div id="fileList"></div>
         </div>
     </div>
+    <div id="spinner" class="spinner-overlay" style="display: none;">
+        <div class="spinner">∴</div>
+        <div class="spinner-text">변환 중...</div>
+    </div>
 
     <script>
-        document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+        // DOM Elements
+        const spinner = document.getElementById('spinner');
+        const uploadForm = document.getElementById('uploadForm');
+        const fileInput = document.getElementById('fileInput');
+        const fileList = document.getElementById('fileList');
+
+        // Event Handlers
+        async function handleFormSubmit(e) {
             e.preventDefault();
-            const fileInput = document.getElementById('fileInput');
             const file = fileInput.files[0];
-            
+
             if (!file) {
                 alert('파일을 선택해주세요.');
                 return;
             }
+
+            spinner.style.display = 'flex';
 
             const formData = new FormData();
             formData.append('file', file);
@@ -43,9 +57,8 @@
                     method: 'POST',
                     body: formData
                 });
-                
+
                 if (response.ok) {
-                    alert('변환이 완료되었습니다.');
                     loadFileList();
                 } else {
                     const error = await response.json();
@@ -53,14 +66,15 @@
                 }
             } catch (error) {
                 alert('변환 중 오류가 발생했습니다.');
+            } finally {
+                spinner.style.display = 'none';
             }
-        });
+        }
 
-        async function loadFileList() {
+        async function handleLoadFileList() {
             try {
                 const response = await fetch('/files');
                 const data = await response.json();
-                const fileList = document.getElementById('fileList');
                 fileList.innerHTML = '';
 
                 data.files.forEach(file => {
@@ -77,8 +91,13 @@
             }
         }
 
-        // 페이지 로드 시 파일 목록 불러오기
-        loadFileList();
+        function main() {
+            uploadForm.addEventListener('submit', handleFormSubmit);
+            handleLoadFileList();
+        }
+
+        main();
     </script>
 </body>
-</html> 
+
+</html>

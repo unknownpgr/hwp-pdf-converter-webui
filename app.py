@@ -10,11 +10,11 @@ from io import BytesIO
 
 app = FastAPI()
 
-# 파일 저장 경로 설정
+# Set file storage paths
 OUTPUT_DIR = "/tmp/files"
 TEMP_DIR = "/tmp/temp"
 
-# 디렉토리 생성
+# Create directories
 for directory in [OUTPUT_DIR, TEMP_DIR]:
     if not os.path.exists(directory):
         os.makedirs(directory)
@@ -24,11 +24,11 @@ async def convert_hwp_to_pdf(file: UploadFile = File(...)):
     if not file.filename.endswith('.hwp'):
         raise HTTPException(status_code=400, detail="Only HWP files are allowed")
     
-    # 임시 디렉토리 생성
+    # Create temporary directory
     temp_work_dir = os.path.join(TEMP_DIR, str(uuid.uuid4()))
     os.makedirs(temp_work_dir)
     
-    # 임시 파일 저장
+    # Save temporary file
     temp_file_path = os.path.join(TEMP_DIR, f"{uuid.uuid4()}.hwp")
     pdf_file_path = os.path.join(OUTPUT_DIR, f"{os.path.splitext(file.filename)[0]}.pdf")
     
@@ -36,18 +36,18 @@ async def convert_hwp_to_pdf(file: UploadFile = File(...)):
         with open(temp_file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
         
-        # hwp5html 명령어로 HTML 변환
+        # Convert to HTML using hwp5html command
         subprocess.run([
             "hwp5html",
             "--output", temp_work_dir,
             temp_file_path
         ], check=True)
         
-        # HTML 파일 경로
+        # HTML file paths
         html_file = os.path.join(temp_work_dir, "index.xhtml")
         css_file = os.path.join(temp_work_dir, "styles.css")
 
-        # CSS 파일에 페이지 설정 (사이즈 레터, 마진, 패딩 없음) 추가
+        # Add page settings to CSS file (letter size, no margins, no padding)
         with open(css_file, "a") as f:
             f.write("""
             @page {
@@ -58,7 +58,7 @@ async def convert_hwp_to_pdf(file: UploadFile = File(...)):
             """
         )
 
-        # HTML을 PDF로 변환
+        # Convert HTML to PDF
         subprocess.run([
             "weasyprint",
             html_file,
@@ -71,10 +71,9 @@ async def convert_hwp_to_pdf(file: UploadFile = File(...)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     finally:
-        # 에러 발생 시에도 임시 파일 및 디렉토리 정리
-        # if os.path.exists(temp_work_dir):
-        #     shutil.rmtree(temp_work_dir)
-        pass
+        # Clean up temporary files and directories even if error occurs
+        if os.path.exists(temp_work_dir):
+            shutil.rmtree(temp_work_dir)
 
 @app.get("/files")
 async def list_converted_files():
@@ -91,7 +90,7 @@ async def download_file(filename: str):
         raise HTTPException(status_code=404, detail="File not found")
     return FileResponse(file_path)
 
-# 정적 파일 서빙 설정
+# Static file serving configuration
 app.mount("/", StaticFiles(directory="static"), name="static")
 
 
