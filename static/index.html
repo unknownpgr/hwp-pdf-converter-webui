@@ -15,9 +15,14 @@
         <div class="upload-section">
             <h2>파일 업로드</h2>
             <form id="uploadForm" enctype="multipart/form-data">
-                <input type="file" id="fileInput" accept=".hwp" required>
+                <input type="file" id="fileInput" accept=".hwp" multiple required>
                 <button type="submit">변환하기</button>
             </form>
+        </div>
+
+        <div class="conversion-status-section">
+            <h2>변환 상태</h2>
+            <div id="conversionStatus"></div>
         </div>
 
         <div class="files-section">
@@ -36,21 +41,26 @@
         const uploadForm = document.getElementById('uploadForm');
         const fileInput = document.getElementById('fileInput');
         const fileList = document.getElementById('fileList');
+        const conversionStatus = document.getElementById('conversionStatus');
+        let statusPollingInterval = null;
 
         // Event Handlers
         async function handleFormSubmit(e) {
             e.preventDefault();
-            const file = fileInput.files[0];
+            const files = fileInput.files;
 
-            if (!file) {
+            if (files.length === 0) {
                 alert('파일을 선택해주세요.');
                 return;
             }
 
             spinner.style.display = 'flex';
+            conversionStatus.innerHTML = '';
 
             const formData = new FormData();
-            formData.append('file', file);
+            for (const file of files) {
+                formData.append('files', file);
+            }
 
             try {
                 const response = await fetch('/convert', {
@@ -59,7 +69,7 @@
                 });
 
                 if (response.ok) {
-                    loadFileList();
+                    startStatusPolling();
                 } else {
                     const error = await response.json();
                     alert(error.detail);
@@ -71,7 +81,71 @@
             }
         }
 
-        async function handleLoadFileList() {
+        async function checkConversionStatus() {
+            try {
+                const response = await fetch('/conversion-status');
+                const data = await response.json();
+
+                let statusHtml = '';
+                if (data.status === 'processing') {
+                    const total = data.total_files.length;
+                    const completed = data.completed_files.length;
+                    const failed = data.failed_files.length;
+                    const progress = ((completed + failed) / total) * 100;
+
+                    statusHtml = `
+                        <div class="status-item">
+                            <div class="status-progress">
+                                <div class="progress-bar" style="width: ${progress}%"></div>
+                            </div>
+                            <div class="status-text">
+                                처리 중: ${completed}/${total} 파일 (실패: ${failed})
+                            </div>
+                        </div>
+                    `;
+                } else if (data.status === 'completed') {
+                    statusHtml = `
+                        <div class="status-item success">
+                            <div class="status-text">
+                                변환 완료: ${data.completed_files.length}개 파일
+                            </div>
+                        </div>
+                    `;
+                    stopStatusPolling();
+                } else if (data.status === 'error') {
+                    statusHtml = `
+                        <div class="status-item error">
+                            <div class="status-text">
+                                오류 발생: ${data.message}
+                            </div>
+                        </div>
+                    `;
+                    stopStatusPolling();
+                }
+
+                conversionStatus.innerHTML = statusHtml;
+                loadFileList();
+            } catch (error) {
+                console.error('상태 확인 중 오류가 발생했습니다:', error);
+            }
+        }
+
+        function startStatusPolling() {
+            if (statusPollingInterval) {
+                clearInterval(statusPollingInterval);
+            }
+            checkConversionStatus();
+            statusPollingInterval = setInterval(checkConversionStatus, 1000);
+        }
+
+        function stopStatusPolling() {
+            if (statusPollingInterval) {
+                clearInterval(statusPollingInterval);
+                statusPollingInterval = null;
+            }
+        }
+
+        async function loadFileList() {
             try {
                 const response = await fetch('/files');
                 const data = await response.json();
@@ -93,7 +167,7 @@
 
         function main() {
             uploadForm.addEventListener('submit', handleFormSubmit);
-            handleLoadFileList();
+            loadFileList();
         }
 
         main();
