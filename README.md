@@ -2,6 +2,8 @@
 
 한글(HWP) 파일을 PDF로 변환하는 웹 애플리케이션입니다. FastAPI를 사용하여 개발되었으며, Docker를 통해 쉽게 배포할 수 있습니다.
 
+![screenshot](./screenshot.png)
+
 ## 기능
 
 - 다중 HWP 파일 동시 변환
