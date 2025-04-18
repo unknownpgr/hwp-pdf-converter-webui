@@ -43,6 +43,7 @@
         const fileList = document.getElementById('fileList');
         const conversionStatus = document.getElementById('conversionStatus');
         let statusPollingInterval = null;
+        let currentSessionId = null;
 
         // Event Handlers
         async function handleFormSubmit(e) {
@@ -69,6 +70,8 @@
                 });
 
                 if (response.ok) {
+                    const data = await response.json();
+                    currentSessionId = data.session_id;
                     startStatusPolling();
                 } else {
                     const error = await response.json();
@@ -82,8 +85,10 @@
         }
 
         async function checkConversionStatus() {
+            if (!currentSessionId) return;
+
             try {
-                const response = await fetch('/conversion-status');
+                const response = await fetch(`/conversion-status/${currentSessionId}`);
                 const data = await response.json();
 
                 let statusHtml = '';
@@ -146,8 +151,10 @@
         }
 
         async function loadFileList() {
+            if (!currentSessionId) return;
+
             try {
-                const response = await fetch('/files');
+                const response = await fetch(`/files/${currentSessionId}`);
                 const data = await response.json();
                 fileList.innerHTML = '';
 
@@ -156,7 +163,7 @@
                     fileItem.className = 'file-item';
                     fileItem.innerHTML = `
                         <span>${file}</span>
-                        <a href="/files/${file}" download>다운로드</a>
+                        <a href="/files/${currentSessionId}/${file}" download>다운로드</a>
                     `;
                     fileList.appendChild(fileItem);
                 });
@@ -167,7 +174,6 @@
 
         function main() {
             uploadForm.addEventListener('submit', handleFormSubmit);
-            loadFileList();
         }
 
         main();

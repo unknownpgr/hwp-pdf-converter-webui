@@ -13,24 +13,21 @@ from concurrent.futures import ThreadPoolExecutor
 app = FastAPI()
 
 # Set file storage paths
-OUTPUT_DIR = "/tmp/files"
+BASE_DIR = "/tmp/files"
 TEMP_DIR = "/tmp/temp"
 
 # Global conversion status
-CONVERSION_STATUS = {
-    'status': 'idle',  # idle, processing, completed, error
-    'total_files': [],
-    'completed_files': [],
-    'failed_files': [],
-    'message': None
-}
+CONVERSION_SESSIONS = {}
 
 # Create directories
-for directory in [OUTPUT_DIR, TEMP_DIR]:
+for directory in [BASE_DIR, TEMP_DIR]:
     if not os.path.exists(directory):
         os.makedirs(directory)
 
-def convert_single_file(file_path: str, pdf_file_path: str):
+def get_session_dir(session_id: str) -> str:
+    return os.path.join(BASE_DIR, session_id)
+
+def convert_single_file(file_path: str, pdf_file_path: str, session_id: str):
     try:
         # Create temporary directory
         temp_work_dir = os.path.join(TEMP_DIR, str(uuid.uuid4()))
@@ -65,36 +62,41 @@ def convert_single_file(file_path: str, pdf_file_path: str):
             pdf_file_path,
         ], check=True)
         
-        CONVERSION_STATUS['completed_files'].append(os.path.basename(file_path))
+        CONVERSION_SESSIONS[session_id]['completed_files'].append(os.path.basename(file_path))
         
         # Update overall status
-        if len(CONVERSION_STATUS['completed_files']) + len(CONVERSION_STATUS['failed_files']) == len(CONVERSION_STATUS['total_files']):
-            if CONVERSION_STATUS['failed_files']:
-                CONVERSION_STATUS['status'] = 'error'
-                CONVERSION_STATUS['message'] = f"Some files failed to convert: {', '.join(CONVERSION_STATUS['failed_files'])}"
+        if len(CONVERSION_SESSIONS[session_id]['completed_files']) + len(CONVERSION_SESSIONS[session_id]['failed_files']) == len(CONVERSION_SESSIONS[session_id]['total_files']):
+            if CONVERSION_SESSIONS[session_id]['failed_files']:
+                CONVERSION_SESSIONS[session_id]['status'] = 'error'
+                CONVERSION_SESSIONS[session_id]['message'] = f"Some files failed to convert: {', '.join(CONVERSION_SESSIONS[session_id]['failed_files'])}"
             else:
-                CONVERSION_STATUS['status'] = 'completed'
+                CONVERSION_SESSIONS[session_id]['status'] = 'completed'
         else:
-            CONVERSION_STATUS['status'] = 'processing'
+            CONVERSION_SESSIONS[session_id]['status'] = 'processing'
         
     except Exception as e:
-        CONVERSION_STATUS['failed_files'].append(os.path.basename(file_path))
-        CONVERSION_STATUS['status'] = 'error'
-        CONVERSION_STATUS['message'] = str(e)
+        CONVERSION_SESSIONS[session_id]['failed_files'].append(os.path.basename(file_path))
+        CONVERSION_SESSIONS[session_id]['status'] = 'error'
+        CONVERSION_SESSIONS[session_id]['message'] = str(e)
     finally:
         if os.path.exists(temp_work_dir):
             shutil.rmtree(temp_work_dir)
 
 @app.post("/convert")
 async def convert_hwp_to_pdf(files: List[UploadFile] = File(...)):
-    # Reset conversion status
-    CONVERSION_STATUS.update({
+    # Generate session ID
+    session_id = str(uuid.uuid4())
+    session_dir = get_session_dir(session_id)
+    os.makedirs(session_dir, exist_ok=True)
+    
+    # Initialize session status
+    CONVERSION_SESSIONS[session_id] = {
         'status': 'processing',
         'total_files': [file.filename for file in files],
         'completed_files': [],
         'failed_files': [],
         'message': None
-    })
+    }
     
     # Validate files and save them
     temp_files = []
@@ -105,7 +107,7 @@ async def convert_hwp_to_pdf(files: List[UploadFile] = File(...)):
             
             # Save temporary file
             temp_file_path = os.path.join(TEMP_DIR, f"{uuid.uuid4()}.hwp")
-            pdf_file_path = os.path.join(OUTPUT_DIR, f"{os.path.splitext(file.filename)[0]}.pdf")
+            pdf_file_path = os.path.join(session_dir, f"{os.path.splitext(file.filename)[0]}.pdf")
             
             # Read file content and write to temporary file
             file_content = file.file.read()
@@ -116,9 +118,9 @@ async def convert_hwp_to_pdf(files: List[UploadFile] = File(...)):
         
         # Start conversion in background
         for temp_file_path, pdf_file_path in temp_files:
-            asyncio.create_task(asyncio.to_thread(convert_single_file, temp_file_path, pdf_file_path))
+            asyncio.create_task(asyncio.to_thread(convert_single_file, temp_file_path, pdf_file_path, session_id))
         
-        return {"message": "Conversion started"}
+        return {"session_id": session_id, "message": "Conversion started"}
     
     except Exception as e:
         # Clean up temporary files if error occurs
@@ -127,28 +129,33 @@ async def convert_hwp_to_pdf(files: List[UploadFile] = File(...)):
                 os.remove(temp_file_path)
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/conversion-status")
-async def get_conversion_status():
-    return CONVERSION_STATUS
+@app.get("/conversion-status/{session_id}")
+async def get_conversion_status(session_id: str):
+    if session_id not in CONVERSION_SESSIONS:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return CONVERSION_SESSIONS[session_id]
 
-@app.get("/files")
-async def list_converted_files():
+@app.get("/files/{session_id}")
+async def list_converted_files(session_id: str):
     try:
-        files = [f for f in os.listdir(OUTPUT_DIR) if f.endswith('.pdf')]
+        session_dir = get_session_dir(session_id)
+        if not os.path.exists(session_dir):
+            raise HTTPException(status_code=404, detail="Session not found")
+            
+        files = [f for f in os.listdir(session_dir) if f.endswith('.pdf')]
         return {"files": files}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/files/{filename}")
-async def download_file(filename: str):
-    file_path = os.path.join(OUTPUT_DIR, filename)
+@app.get("/files/{session_id}/{filename}")
+async def download_file(session_id: str, filename: str):
+    file_path = os.path.join(get_session_dir(session_id), filename)
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="File not found")
     return FileResponse(file_path)
 
 # Static file serving configuration
 app.mount("/", StaticFiles(directory="static"), name="static")
-
 
 if __name__ == "__main__":
     import uvicorn
