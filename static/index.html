@@ -187,10 +187,16 @@
                     fileItem.className = 'flex justify-between items-center p-3 border-b border-gray-200 last:border-b-0 hover:bg-gray-50 transition-colors';
                     fileItem.innerHTML = `
                         <span class="text-gray-700">${file}</span>
-                        <a href="/files/${currentSessionId}/${file}" download 
-                            class="text-primary border-2 border-primary px-4 py-2 rounded-lg hover:bg-primary hover:text-white transition-colors">
-                            다운로드
-                        </a>
+                        <div class="flex gap-2">
+                            <a href="/view/${currentSessionId}/${file}" target="_blank"
+                                class="text-primary border-2 border-primary px-4 py-2 rounded-lg hover:bg-primary hover:text-white transition-colors">
+                                보기
+                            </a>
+                            <a href="/files/${currentSessionId}/${file}" download 
+                                class="text-primary border-2 border-primary px-4 py-2 rounded-lg hover:bg-primary hover:text-white transition-colors">
+                                다운로드
+                            </a>
+                        </div>
                     `;
                     fileList.appendChild(fileItem);
                 });
