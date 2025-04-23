@@ -13,8 +13,6 @@
                     colors: {
                         primary: '#3498db',
                         'primary-dark': '#2980b9',
-                        success: '#2ecc71',
-                        error: '#e74c3c',
                     }
                 }
             }
@@ -22,33 +20,14 @@
     </script>
 </head>
 
-<body class="min-h-screen bg-gray-50 p-5 flex flex-col">
-    <div class="max-w-3xl mx-auto w-full bg-white p-8 rounded-xl shadow-md flex-1">
-        <h1 class="text-3xl font-semibold text-center text-gray-800 mb-10">HWP to PDF Converter</h1>
-
-        <div class="bg-gray-50 p-6 rounded-lg border border-gray-200 mb-8">
-            <h2 class="text-xl font-medium text-gray-700 mb-4">파일 업로드</h2>
-            <div class="flex flex-col gap-5">
-                <input type="file" id="fileInput" accept=".hwp" multiple
-                       class="p-3 border-2 border-gray-200 rounded-lg bg-white focus:border-primary focus:outline-none transition-colors">
-                <div id="status" class="text-sm font-medium text-gray-700"></div>
-            </div>
-        </div>
-
-        <div class="bg-gray-50 p-6 rounded-lg border border-gray-200 mb-8">
-            <h2 class="text-xl font-medium text-gray-700 mb-4">변환 상태</h2>
-            <div id="conversionStatus"></div>
-        </div>
-
-        <div class="bg-gray-50 p-6 rounded-lg border border-gray-200">
-            <h2 class="text-xl font-medium text-gray-700 mb-4">변환된 파일 목록</h2>
-            <div id="fileList"></div>
-        </div>
+<body class="min-h-screen bg-gray-50 flex items-center justify-center">
+    <div class="relative">
+        <input type="file" id="fileInput" accept=".hwp" multiple class="hidden">
+        <label for="fileInput"
+               class="bg-primary text-white py-4 px-8 rounded-lg font-medium hover:bg-primary-dark transform hover:-translate-y-0.5 transition-all duration-200 cursor-pointer text-lg">
+            HWP 파일 선택
+        </label>
     </div>
-
-    <footer class="text-center py-5 text-gray-500 text-sm mt-10">
-        <p>&copy; 2024 unknownpgr@gmail.com. All rights reserved.</p>
-    </footer>
 
     <div id="spinner"
          class="fixed inset-0 bg-black bg-opacity-50 flex flex-col items-center justify-center z-50 hidden">
@@ -60,11 +39,6 @@
         // DOM Elements
         const spinner = document.getElementById('spinner');
         const fileInput = document.getElementById('fileInput');
-        const status = document.getElementById('status');
-        const fileList = document.getElementById('fileList');
-        const conversionStatus = document.getElementById('conversionStatus');
-        let statusPollingInterval = null;
-        let currentSessionId = null;
 
         // Event Handlers
         async function handleFileSelect(e) {
@@ -72,7 +46,6 @@
             if (files.length === 0) return;
 
             spinner.classList.remove('hidden');
-            status.textContent = '파일 변환 중...';
 
             const formData = new FormData();
             for (const file of files) {
@@ -87,121 +60,17 @@
 
                 if (response.ok) {
                     const data = await response.json();
-                    status.textContent = '변환 완료! PDF 파일을 여는 중...';
-
                     // Open each PDF in a new tab
                     data.files.forEach(file => {
                         window.open(`/files/${file}`, '_blank');
                     });
-
-                    status.textContent = '모든 파일이 변환되었습니다.';
-                } else {
-                    const error = await response.json();
-                    status.textContent = `오류 발생: ${error.detail}`;
                 }
             } catch (error) {
-                status.textContent = '변환 중 오류가 발생했습니다.';
+                console.error('Error:', error);
             } finally {
                 spinner.classList.add('hidden');
                 // Clear file input
                 fileInput.value = '';
-            }
-        }
-
-        async function checkConversionStatus() {
-            if (!currentSessionId) return;
-
-            try {
-                const response = await fetch(`/conversion-status/${currentSessionId}`);
-                const data = await response.json();
-
-                let statusHtml = '';
-                if (data.status === 'processing') {
-                    const total = data.total_files.length;
-                    const completed = data.completed_files.length;
-                    const failed = data.failed_files.length;
-                    const progress = ((completed + failed) / total) * 100;
-
-                    statusHtml = `
-                        <div class="bg-white p-4 rounded-lg shadow-sm mb-3">
-                            <div class="h-5 bg-gray-100 rounded-full overflow-hidden mb-2">
-                                <div class="h-full bg-primary transition-all duration-300" style="width: ${progress}%"></div>
-                            </div>
-                            <div class="text-sm font-medium text-gray-700">
-                                처리 중: ${completed}/${total} 파일 (실패: ${failed})
-                            </div>
-                        </div>
-                    `;
-                } else if (data.status === 'completed') {
-                    statusHtml = `
-                        <div class="bg-green-50 p-4 rounded-lg border-l-4 border-success mb-3">
-                            <div class="text-sm font-medium text-gray-700">
-                                변환 완료: ${data.completed_files.length}개 파일
-                            </div>
-                        </div>
-                    `;
-                    stopStatusPolling();
-                } else if (data.status === 'error') {
-                    statusHtml = `
-                        <div class="bg-red-50 p-4 rounded-lg border-l-4 border-error mb-3">
-                            <div class="text-sm font-medium text-gray-700">
-                                오류 발생: ${data.message}
-                            </div>
-                        </div>
-                    `;
-                    stopStatusPolling();
-                }
-
-                conversionStatus.innerHTML = statusHtml;
-                loadFileList();
-            } catch (error) {
-                console.error('상태 확인 중 오류가 발생했습니다:', error);
-            }
-        }
-
-        function startStatusPolling() {
-            if (statusPollingInterval) {
-                clearInterval(statusPollingInterval);
-            }
-            checkConversionStatus();
-            statusPollingInterval = setInterval(checkConversionStatus, 1000);
-        }
-
-        function stopStatusPolling() {
-            if (statusPollingInterval) {
-                clearInterval(statusPollingInterval);
-                statusPollingInterval = null;
-            }
-        }
-
-        async function loadFileList() {
-            if (!currentSessionId) return;
-
-            try {
-                const response = await fetch(`/files/${currentSessionId}`);
-                const data = await response.json();
-                fileList.innerHTML = '';
-
-                data.files.forEach(file => {
-                    const fileItem = document.createElement('div');
-                    fileItem.className = 'flex justify-between items-center p-3 border-b border-gray-200 last:border-b-0 hover:bg-gray-50 transition-colors';
-                    fileItem.innerHTML = `
-                        <span class="text-gray-700">${file}</span>
-                        <div class="flex gap-2">
-                            <a href="/view/${currentSessionId}/${file}" target="_blank"
-                                class="text-primary border-2 border-primary px-4 py-2 rounded-lg hover:bg-primary hover:text-white transition-colors">
-                                보기
-                            </a>
-                            <a href="/files/${currentSessionId}/${file}" download 
-                                class="text-primary border-2 border-primary px-4 py-2 rounded-lg hover:bg-primary hover:text-white transition-colors">
-                                다운로드
-                            </a>
-                        </div>
-                    `;
-                    fileList.appendChild(fileItem);
-                });
-            } catch (error) {
-                console.error('파일 목록을 불러오는 중 오류가 발생했습니다:', error);
             }
         }
 
