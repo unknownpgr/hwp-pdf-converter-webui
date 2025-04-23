@@ -2,14 +2,10 @@
 
 한글(HWP) 파일을 PDF로 변환하는 웹 애플리케이션입니다. FastAPI를 사용하여 개발되었으며, Docker를 통해 쉽게 배포할 수 있습니다.
 
-![screenshot](./screenshot.png)
-
 ## 기능
 
 - 다중 HWP 파일 동시 변환
-- 실시간 변환 상태 확인
 - 변환된 PDF 파일 다운로드
-- 모던하고 반응형 웹 인터페이스
 
 ## 기술 스택
 
@@ -43,19 +39,16 @@ docker-compose up -d
 http://localhost:80
 ```
 
-## 사용 방법
-
-1. 웹 인터페이스에서 "파일 선택" 버튼을 클릭하여 HWP 파일을 선택합니다.
-2. "변환하기" 버튼을 클릭하여 변환을 시작합니다.
-3. 변환 상태를 실시간으로 확인할 수 있습니다.
-4. 변환이 완료되면 PDF 파일을 다운로드할 수 있습니다.
-
 ## API 엔드포인트
+- `POST /convert`: HWP 파일을 업로드하여 PDF로 변환합니다. 여러 파일을 동시에 업로드할 수 있습니다.
+  - Request: `multipart/form-data`로 HWP 파일들을 전송
+  - Response: `{"files": ["<file_hash>.pdf", ...]}` 형식으로 변환된 PDF 파일명 목록 반환
 
-- `POST /convert`: HWP 파일 업로드 및 변환 시작
-- `GET /conversion-status/{session_id}`: 변환 상태 확인
-- `GET /files/{session_id}`: 변환된 파일 목록 조회
-- `GET /files/{session_id}/{filename}`: PDF 파일 다운로드
+- `GET /files/{filename}`: 변환된 PDF 파일을 다운로드합니다.
+  - Response: PDF 파일 스트림 (`application/pdf`)
+
+- `GET /`: 메인 페이지를 표시합니다.
+  - Response: HTML 페이지
 
 ## 라이선스
 
