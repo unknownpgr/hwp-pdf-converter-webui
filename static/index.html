@@ -28,14 +28,11 @@
 
         <div class="bg-gray-50 p-6 rounded-lg border border-gray-200 mb-8">
             <h2 class="text-xl font-medium text-gray-700 mb-4">파일 업로드</h2>
-            <form id="uploadForm" enctype="multipart/form-data" class="flex flex-col gap-5">
-                <input type="file" id="fileInput" accept=".hwp" multiple required
+            <div class="flex flex-col gap-5">
+                <input type="file" id="fileInput" accept=".hwp" multiple
                        class="p-3 border-2 border-gray-200 rounded-lg bg-white focus:border-primary focus:outline-none transition-colors">
-                <button type="submit"
-                        class="bg-primary text-white py-3 px-6 rounded-lg font-medium hover:bg-primary-dark transform hover:-translate-y-0.5 transition-all duration-200">
-                    변환하기
-                </button>
-            </form>
+                <div id="status" class="text-sm font-medium text-gray-700"></div>
+            </div>
         </div>
 
         <div class="bg-gray-50 p-6 rounded-lg border border-gray-200 mb-8">
@@ -62,25 +59,20 @@
     <script>
         // DOM Elements
         const spinner = document.getElementById('spinner');
-        const uploadForm = document.getElementById('uploadForm');
         const fileInput = document.getElementById('fileInput');
+        const status = document.getElementById('status');
         const fileList = document.getElementById('fileList');
         const conversionStatus = document.getElementById('conversionStatus');
         let statusPollingInterval = null;
         let currentSessionId = null;
 
         // Event Handlers
-        async function handleFormSubmit(e) {
-            e.preventDefault();
-            const files = fileInput.files;
-
-            if (files.length === 0) {
-                alert('파일을 선택해주세요.');
-                return;
-            }
+        async function handleFileSelect(e) {
+            const files = e.target.files;
+            if (files.length === 0) return;
 
             spinner.classList.remove('hidden');
-            conversionStatus.innerHTML = '';
+            status.textContent = '파일 변환 중...';
 
             const formData = new FormData();
             for (const file of files) {
@@ -95,16 +87,24 @@
 
                 if (response.ok) {
                     const data = await response.json();
-                    currentSessionId = data.session_id;
-                    startStatusPolling();
+                    status.textContent = '변환 완료! PDF 파일을 여는 중...';
+
+                    // Open each PDF in a new tab
+                    data.files.forEach(file => {
+                        window.open(`/files/${file}`, '_blank');
+                    });
+
+                    status.textContent = '모든 파일이 변환되었습니다.';
                 } else {
                     const error = await response.json();
-                    alert(error.detail);
+                    status.textContent = `오류 발생: ${error.detail}`;
                 }
             } catch (error) {
-                alert('변환 중 오류가 발생했습니다.');
+                status.textContent = '변환 중 오류가 발생했습니다.';
             } finally {
                 spinner.classList.add('hidden');
+                // Clear file input
+                fileInput.value = '';
             }
         }
 
@@ -206,7 +206,7 @@
         }
 
         function main() {
-            uploadForm.addEventListener('submit', handleFormSubmit);
+            fileInput.addEventListener('change', handleFileSelect);
         }
 
         main();
