@@ -5,6 +5,8 @@ services:
     build: .
     environment:
       - TZ=Asia/Seoul
+    volumes:
+      - ./files:/tmp/files
     command: uvicorn app:app --host 0.0.0.0 --port 80 
 
 # NOTE: Remove this section if you are not using a external network
